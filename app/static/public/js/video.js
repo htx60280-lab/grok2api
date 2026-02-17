@@ -596,6 +596,18 @@
     }
     ffmpegLoading = true;
     try {
+      const utilApi = window.FFmpegUtil || {};
+      const toBlobURL = utilApi.toBlobURL || null;
+      const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+      let coreURL = `${CDN_BASE}/ffmpeg-core.js`;
+      let wasmURL = `${CDN_BASE}/ffmpeg-core.wasm`;
+      let workerURL = `${CDN_BASE}/ffmpeg-core.worker.js`;
+      if (typeof toBlobURL === 'function') {
+        // 跨域场景下将远端脚本转为 blob URL，规避 Worker 同源限制
+        coreURL = await toBlobURL(coreURL, 'text/javascript');
+        wasmURL = await toBlobURL(wasmURL, 'application/wasm');
+        workerURL = await toBlobURL(workerURL, 'text/javascript');
+      }
       if (typeof FFmpegCtor === 'function') {
         try {
           // 兼容 @ffmpeg/ffmpeg 0.12+ 的 class FFmpeg
@@ -605,7 +617,11 @@
           ffmpegInstance = FFmpegCtor({ log: false });
         }
         if (ffmpegInstance && typeof ffmpegInstance.load === 'function') {
-          await ffmpegInstance.load();
+          await ffmpegInstance.load({
+            coreURL,
+            wasmURL,
+            workerURL,
+          });
         }
       }
       if (!ffmpegInstance) {
