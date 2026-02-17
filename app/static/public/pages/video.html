@@ -18,7 +18,7 @@
   <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/fonts/geist-mono/style.css" rel="stylesheet">
   <script src="/static/common/js/theme.js?v=0.1.0"></script>
   <link href="/static/common/css/common.css?v=0.3.7" rel="stylesheet">
-  <link href="/static/public/css/video.css?v=0.3.7" rel="stylesheet">
+  <link href="/static/public/css/video.css?v=0.3.8" rel="stylesheet">
   <link href="/static/common/css/toast.css" rel="stylesheet">
 </head>
 
@@ -26,7 +26,7 @@
   <div id="toast-container" class="toast-container"></div>
   <div id="app-header"></div>
 
-  <main class="flex-1 container mx-auto max-w-5xl px-4 sm:px-6 py-5 sm:py-8 fade-in">
+  <main class="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-5 sm:py-8 fade-in">
     <div class="space-y-4 sm:space-y-6">
       <div class="video-header-row">
         <div>
@@ -173,31 +173,24 @@
         </div>
       </div>
 
-      <div class="video-card video-preview-card">
-        <div class="video-preview-header">
-          <div class="card-title">视频预览</div>
-          <div class="preview-actions">
-            <button id="pickCachedVideoBtn" class="geist-button-outline text-xs px-3">选择缓存视频</button>
-            <button id="enterEditBtn" class="geist-button-outline text-xs px-3">进入编辑模式</button>
-            <button id="clearBtn" class="geist-button-outline text-xs px-3">清空</button>
+      <div class="video-workbench-grid">
+        <div id="editPanel" class="video-card edit-panel">
+          <div class="video-preview-header">
+            <div class="card-title">视频工作区</div>
+            <div class="preview-actions">
+              <button id="pickCachedVideoBtn" class="geist-button-outline text-xs px-3">选择视频</button>
+              <button id="clearBtn" class="geist-button-outline text-xs px-3">清空</button>
+            </div>
           </div>
-        </div>
-        <div id="videoEmpty" class="video-empty">等待生成视频</div>
-        <div id="videoStage" class="video-stage hidden"></div>
-      </div>
-
-      <div id="editPanel" class="video-card edit-panel hidden">
-        <div class="video-preview-header">
-          <div class="card-title">拼接编辑</div>
-          <div class="preview-actions">
-            <button id="cancelEditBtn" class="geist-button-outline text-xs px-3">退出编辑</button>
-          </div>
-        </div>
-        <div id="editHint" class="video-empty">先在上方视频列表中选择一个视频，再进入编辑模式。</div>
-        <div id="editBody" class="hidden">
-          <div class="edit-preview-wrap">
-            <video id="editVideo" controls preload="metadata"></video>
-          </div>
+          <div id="editHint" class="video-empty">请先选择或生成一个视频，工作区会始终展示当前视频。</div>
+          <div id="editBody">
+            <div class="meta-grid edit-meta-grid">
+              <div class="meta-item"><div class="meta-label">当前工作视频</div><div id="mergeVideoA" class="meta-value">-</div></div>
+              <div class="meta-item"><div class="meta-label">历史数量</div><div id="historyCount" class="meta-value">0</div></div>
+            </div>
+            <div class="edit-preview-wrap">
+              <video id="editVideo" controls preload="metadata"></video>
+            </div>
           <div class="edit-slider-wrap">
             <input id="editTimeline" type="range" min="0" max="100000" step="1" value="0">
             <div class="progress-meta">
@@ -205,13 +198,14 @@
               <span id="editDurationText">总时长 -</span>
             </div>
           </div>
-          <div class="meta-grid edit-meta-grid">
-            <div class="meta-item"><div class="meta-label">frame_index</div><div id="editFrameIndex" class="meta-value">-</div></div>
-            <div class="meta-item"><div class="meta-label">timestamp_ms</div><div id="editTimestampMs" class="meta-value">-</div></div>
-            <div class="meta-item"><div class="meta-label">frame_hash</div><div id="editFrameHash" class="meta-value">-</div></div>
-            <div class="meta-item">
-              <div class="meta-label">拼接时长</div>
-              <select id="editLengthSelect" class="geist-input">
+            <div class="meta-grid edit-meta-grid">
+              <div class="meta-item"><div class="meta-label">frame_index</div><div id="editFrameIndex" class="meta-value">-</div></div>
+              <div class="meta-item"><div class="meta-label">timestamp_ms</div><div id="editTimestampMs" class="meta-value">-</div></div>
+              <div class="meta-item"><div class="meta-label">frame_hash</div><div id="editFrameHash" class="meta-value">-</div></div>
+              <div class="meta-item"><div class="meta-label">视频2(B)</div><div id="mergeVideoB" class="meta-value">-</div></div>
+              <div class="meta-item">
+                <div class="meta-label">拼接时长</div>
+                <select id="editLengthSelect" class="geist-input">
                 <option value="6" selected>6 秒</option>
                 <option value="10">10 秒</option>
                 <option value="15">15 秒</option>
@@ -224,18 +218,14 @@
           </div>
           <div class="preview-actions">
             <button id="spliceBtn" class="geist-button text-xs px-3">拼接视频</button>
-          </div>
-          <div class="video-card manual-merge-card">
-            <div class="video-preview-header">
+            </div>
+            <div class="video-card manual-merge-card">
+              <div class="video-preview-header">
               <div class="card-title">手动两段拼接</div>
               <div class="preview-actions">
                 <button id="pickMergeVideoBtn" class="geist-button-outline text-xs px-3" type="button">选择视频2</button>
                 <button id="directMergeBtn" class="geist-button-outline text-xs px-3" type="button">手动拼接</button>
               </div>
-            </div>
-            <div class="meta-grid edit-meta-grid">
-              <div class="meta-item"><div class="meta-label">视频1(A)</div><div id="mergeVideoA" class="meta-value">-</div></div>
-              <div class="meta-item"><div class="meta-label">视频2(B)</div><div id="mergeVideoB" class="meta-value">-</div></div>
             </div>
             <div class="manual-merge-grid">
               <div class="manual-merge-col">
@@ -267,6 +257,14 @@
             </div>
           </div>
         </div>
+
+        <aside class="video-card history-panel">
+          <div class="panel-head">
+            <div class="card-title">历史拼接视频</div>
+          </div>
+          <div id="videoEmpty" class="video-empty">拼接结果会在这里保存，点击可替换到工作区。</div>
+          <div id="videoStage" class="video-stage hidden"></div>
+        </aside>
       </div>
 
       <div id="cacheVideoModal" class="modal-overlay hidden">
@@ -315,7 +313,7 @@
   <script src="/static/common/js/pwa.js?v=0.1.1"></script>
   <script src="/static/vendor/ffmpeg/ffmpeg.js?v=0.1.0"></script>
   <script src="/static/vendor/ffmpeg/ffmpeg-util.js?v=0.1.0"></script>
-  <script src="/static/public/js/video.js?v=0.4.9"></script>
+  <script src="/static/public/js/video.js?v=0.5.0"></script>
 </body>
 
 </html>

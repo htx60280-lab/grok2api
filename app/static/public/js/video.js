@@ -62,6 +62,7 @@
   const referencePreviewImg = document.getElementById('referencePreviewImg');
   const referencePreviewMeta = document.getElementById('referencePreviewMeta');
   const refDropZone = document.getElementById('refDropZone');
+  const historyCount = document.getElementById('historyCount');
 
   let taskStates = new Map();
   let activeTaskIds = [];
@@ -117,6 +118,12 @@
     if (editFrameIndex) editFrameIndex.textContent = lockedFrameIndex >= 0 ? String(lockedFrameIndex) : '-';
     if (editTimestampMs) editTimestampMs.textContent = String(Math.max(0, Math.round(lockedTimestampMs)));
     if (editFrameHash) editFrameHash.textContent = shortHash(lastFrameHash);
+  }
+
+  function updateHistoryCount() {
+    if (!historyCount || !videoStage) return;
+    const count = videoStage.querySelectorAll('.video-item').length;
+    historyCount.textContent = String(count);
   }
 
   function updateMergeLabels() {
@@ -381,6 +388,10 @@
       previewCount = 0;
       selectedVideoItemId = '';
       selectedVideoUrl = '';
+      if (editVideo) {
+        editVideo.removeAttribute('src');
+        editVideo.load();
+      }
       mergeTargetVideoUrl = '';
       mergeTargetVideoName = '';
       mergeCutMsA = 0;
@@ -388,6 +399,7 @@
       if (enterEditBtn) enterEditBtn.disabled = true;
       closeEditPanel();
       updateMergeLabels();
+      updateHistoryCount();
     }
     if (durationValue) {
       durationValue.textContent = '耗时 -';
@@ -456,6 +468,7 @@
     if (videoEmpty) {
       videoEmpty.classList.add('hidden');
     }
+    updateHistoryCount();
     return item;
   }
 
@@ -1008,6 +1021,9 @@
   function bindEditVideoSource(url) {
     const safeUrl = String(url || '').trim();
     selectedVideoUrl = safeUrl;
+    if (editHint) {
+      editHint.classList.toggle('hidden', Boolean(safeUrl));
+    }
     if (!editVideo) return;
     editVideo.src = safeUrl;
     editVideo.load();
@@ -1040,29 +1056,23 @@
   }
 
   function openEditPanel() {
-    if (!editPanel || !editHint || !editBody) return;
     const item = getSelectedVideoItem();
     const url = item
       ? String(item.dataset.url || '').trim()
       : String(selectedVideoUrl || '').trim();
     if (!url) {
-      editPanel.classList.remove('hidden');
-      editHint.classList.remove('hidden');
-      editBody.classList.add('hidden');
+      if (editHint) editHint.classList.remove('hidden');
       toast('请先选中一个已生成视频', 'warning');
       return;
     }
-    editPanel.classList.remove('hidden');
-    editHint.classList.add('hidden');
-    editBody.classList.remove('hidden');
+    if (editHint) editHint.classList.add('hidden');
+    if (editBody) editBody.classList.remove('hidden');
     bindEditVideoSource(url);
   }
 
   function closeEditPanel() {
-    if (!editPanel || !editHint || !editBody) return;
-    editHint.classList.remove('hidden');
-    editBody.classList.add('hidden');
-    editPanel.classList.add('hidden');
+    if (editHint) editHint.classList.remove('hidden');
+    if (editBody) editBody.classList.remove('hidden');
   }
 
   function openCacheVideoModal() {
@@ -1219,6 +1229,13 @@
           renderVideoFromHtml(taskState, info.html);
         } else if (info.url) {
           renderVideoFromUrl(taskState, info.url);
+        }
+        const item = taskState.previewItem || null;
+        const itemUrl = item ? String(item.dataset.url || '').trim() : '';
+        if (item && itemUrl) {
+          selectedVideoItemId = String(item.dataset.index || '');
+          refreshVideoSelectionUi();
+          bindEditVideoSource(itemUrl);
         }
       }
       return;
@@ -2081,9 +2098,7 @@
         return;
       }
       if (!target.classList.contains('video-download')) {
-        if (editPanel && !editPanel.classList.contains('hidden')) {
-          openEditPanel();
-        }
+        bindEditVideoSource(selectedVideoUrl);
         return;
       }
       event.preventDefault();
