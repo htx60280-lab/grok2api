@@ -946,6 +946,14 @@
     updateItemLinks(container, safeUrl);
   }
 
+  function setPreviewTitle(item, text) {
+    if (!item) return;
+    const title = item.querySelector('.video-item-title');
+    if (title) {
+      title.textContent = String(text || '');
+    }
+  }
+
   function getSelectedVideoItem() {
     if (!selectedVideoItemId || !videoStage) return null;
     return videoStage.querySelector(`.video-item[data-index="${selectedVideoItemId}"]`);
@@ -1573,39 +1581,34 @@
     if (spliceBtn) spliceBtn.disabled = true;
     setStatus('connecting', '截帧与拼接处理中');
     try {
-      const frameInfo = await extractFrameAtCurrentPoint(selectedVideoUrl);
+      const sourceVideoUrl = String(selectedVideoUrl || '').trim();
+      const nextRound = editingRound + 1;
+      const frameInfo = await extractFrameAtCurrentPoint(sourceVideoUrl);
       const editCtx = {
-        source_video_url: selectedVideoUrl,
+        source_video_url: sourceVideoUrl,
         source_video_sha256: frameInfo.sourceHash,
         splice_at_ms: Math.round(lockedTimestampMs),
         frame_index: Math.max(0, lockedFrameIndex),
         frame_hash_sha256: frameInfo.frameHash,
         edit_session_id: selectedVideoItemId || 'video-edit',
-        round: editingRound + 1
+        round: nextRound
       };
       const taskId = await createEditVideoTask(authHeader, frameInfo.dataUrl, prompt, editCtx);
       const generatedVideoUrl = await waitEditVideoResult(taskId, normalizeAuthHeader(authHeader));
       const mergedBlob = await concatVideosLocal(frameInfo.sourceBuffer, generatedVideoUrl);
       const mergedUrl = URL.createObjectURL(mergedBlob);
-      let item = getSelectedVideoItem();
-      if (!item && videoStage) {
-        const items = Array.from(videoStage.querySelectorAll('.video-item'));
-        item = items.find((node) => String(node.dataset.url || '').trim() === String(selectedVideoUrl || '').trim()) || null;
-      }
-      if (!item) {
-        item = initPreviewSlot() || null;
-      }
+      const item = initPreviewSlot() || null;
       if (item) {
-        if (!selectedVideoItemId) {
-          selectedVideoItemId = String(item.dataset.index || '');
-        }
+        selectedVideoItemId = String(item.dataset.index || '');
         item.dataset.url = mergedUrl;
+        item.dataset.round = String(nextRound);
+        setPreviewTitle(item, `视频 ${selectedVideoItemId} · 第${nextRound}轮`);
         const state = { previewItem: item };
         renderVideoFromUrl(state, mergedUrl);
         refreshVideoSelectionUi();
       }
       bindEditVideoSource(mergedUrl);
-      editingRound += 1;
+      editingRound = nextRound;
       setStatus('connected', `拼接完成（第 ${editingRound} 轮）`);
       toast('拼接完成，可继续下一轮编辑', 'success');
     } catch (e) {
