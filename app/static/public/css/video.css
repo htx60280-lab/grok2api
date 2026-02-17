@@ -233,6 +233,13 @@ body {
   gap: 8px;
 }
 
+.settings-actions .geist-button,
+.settings-actions .geist-button-outline,
+.splice-action-row .geist-button {
+  height: 32px;
+  padding: 0 12px;
+}
+
 .settings-block {
   display: flex;
   flex-direction: column;

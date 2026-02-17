@@ -2047,16 +2047,27 @@
         setPreviewTitle(item, buildHistoryTitle('splice', item.dataset.index || previewCount));
       }
 
+      const waitTasks = taskIds.map((taskId) =>
+        waitEditVideoResult(taskId, rawPublicKey, spliceRun)
+          .then((generatedVideoUrl) => ({ taskId, generatedVideoUrl }))
+      );
+      const waitResults = await Promise.allSettled(waitTasks);
+
       let successCount = 0;
       let lastMergedUrl = '';
-      for (const taskId of taskIds) {
+      for (let i = 0; i < waitResults.length; i += 1) {
+        const result = waitResults[i];
+        const taskId = taskIds[i];
+        if (spliceRun.cancelled) break;
+        if (result.status !== 'fulfilled') {
+          const missItem = spliceRun.placeholders.get(taskId) || null;
+          if (missItem) removePreviewItem(missItem);
+          continue;
+        }
+        const generatedVideoUrl = result.value.generatedVideoUrl;
         if (spliceRun.cancelled) break;
         const item = spliceRun.placeholders.get(taskId) || null;
         try {
-          const generatedVideoUrl = await waitEditVideoResult(taskId, rawPublicKey, spliceRun);
-          if (spliceRun.cancelled) {
-            throw new Error('edit_cancelled');
-          }
           const mergedBlob = await concatVideosLocal(frameInfo.sourceBuffer, generatedVideoUrl);
           if (spliceRun.cancelled) {
             throw new Error('edit_cancelled');
