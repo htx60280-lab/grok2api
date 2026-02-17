@@ -99,7 +99,7 @@ body {
 }
 
 .history-panel .video-stage {
-  min-height: 260px;
+  min-height: 220px;
   max-height: 980px;
   overflow: auto;
   background: #fafafa;
@@ -109,6 +109,9 @@ body {
 .history-panel .video-item {
   background: #fff;
   border: 1px solid var(--video-outline);
+  padding: 8px;
+  gap: 6px;
+  border-radius: 9px;
 }
 
 .history-panel .video-item-title,
@@ -118,6 +121,7 @@ body {
 
 .history-panel .video-item-bar {
   display: block;
+  margin-bottom: 2px;
 }
 
 .history-panel .video-item-title {
@@ -135,10 +139,14 @@ body {
 }
 
 .history-panel .video-item-actions {
-  margin-top: 10px;
+  margin-top: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 5px;
+}
+
+.history-panel .video-item-body {
+  min-height: 96px;
 }
 
 .history-panel .video-item-link {
@@ -557,6 +565,23 @@ body {
   color: #e2e8f0;
 }
 
+.video-item-actions-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.video-item-actions-overlay .geist-button-outline {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 10px;
+}
+
 .video-item-body {
   border-radius: 8px;
   background: #000;
@@ -565,6 +590,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .video-item video {

@@ -89,6 +89,22 @@
   let mergeTargetVideoName = '';
   let mergeCutMsA = 0;
   let mergeCutMsB = 0;
+
+  function compactTitleToken(value) {
+    const raw = String(value || '').trim();
+    const cleaned = raw.replace(/[^a-zA-Z0-9]/g, '');
+    if (cleaned) return cleaned.slice(0, 8);
+    const ts = String(Date.now());
+    return ts.slice(Math.max(0, ts.length - 8));
+  }
+
+  function buildHistoryTitle(type, value) {
+    const token = compactTitleToken(value);
+    if (type === 'splice') {
+      return `拼接视频第${token}轮`;
+    }
+    return `生成视频${token}`;
+  }
   let cacheModalPickMode = 'edit';
   let cacheModalAnchorEl = null;
 
@@ -434,7 +450,7 @@
     title.textContent = `视频 ${previewCount}`;
 
     const actions = document.createElement('div');
-    actions.className = 'video-item-actions';
+    actions.className = 'video-item-actions video-item-actions-overlay';
 
     const openBtn = document.createElement('a');
     openBtn.className = 'geist-button-outline text-xs px-3 video-open hidden';
@@ -452,11 +468,13 @@
     editBtn.className = 'geist-button-outline text-xs px-3 video-edit';
     editBtn.type = 'button';
     editBtn.textContent = '编辑';
+    editBtn.disabled = true;
 
     const setBBtn = document.createElement('button');
     setBBtn.className = 'geist-button-outline text-xs px-3 video-set-b';
     setBBtn.type = 'button';
     setBBtn.textContent = '设为视频2';
+    setBBtn.disabled = true;
 
     actions.appendChild(openBtn);
     actions.appendChild(downloadBtn);
@@ -467,13 +485,13 @@
     const body = document.createElement('div');
     body.className = 'video-item-body';
     body.innerHTML = '<div class="video-item-placeholder">生成中…</div>';
+    body.appendChild(actions);
 
     const link = document.createElement('div');
     link.className = 'video-item-link';
 
     item.appendChild(header);
     item.appendChild(body);
-    item.appendChild(actions);
     item.appendChild(link);
     videoStage.appendChild(item);
     videoStage.classList.remove('hidden');
@@ -488,6 +506,8 @@
     if (!item) return;
     const openBtn = item.querySelector('.video-open');
     const downloadBtn = item.querySelector('.video-download');
+    const editBtn = item.querySelector('.video-edit');
+    const setBBtn = item.querySelector('.video-set-b');
     const link = item.querySelector('.video-item-link');
     const safeUrl = url || '';
     item.dataset.url = safeUrl;
@@ -507,6 +527,12 @@
     if (downloadBtn) {
       downloadBtn.dataset.url = safeUrl;
       downloadBtn.disabled = !safeUrl;
+    }
+    if (editBtn) {
+      editBtn.disabled = !safeUrl;
+    }
+    if (setBBtn) {
+      setBBtn.disabled = !safeUrl;
     }
     if (safeUrl) {
       item.classList.remove('is-pending');
@@ -1398,6 +1424,7 @@
     previewCount = 0;
     for (const taskId of taskIds) {
       const previewItem = initPreviewSlot();
+      setPreviewTitle(previewItem, buildHistoryTitle('generated', taskId));
       taskStates.set(taskId, {
         taskId,
         source: null,
@@ -1828,7 +1855,7 @@
       if (item) {
         selectedVideoItemId = String(item.dataset.index || '');
         item.dataset.url = mergedUrl;
-        setPreviewTitle(item, `视频 ${selectedVideoItemId} · 手动拼接`);
+        setPreviewTitle(item, buildHistoryTitle('splice', `manual-${Date.now()}`));
         renderVideoFromUrl({ previewItem: item }, mergedUrl);
         refreshVideoSelectionUi();
       }
@@ -1894,7 +1921,7 @@
         selectedVideoItemId = String(item.dataset.index || '');
         item.dataset.url = mergedUrl;
         item.dataset.round = String(nextRound);
-        setPreviewTitle(item, `视频 ${selectedVideoItemId} · 第${nextRound}轮`);
+        setPreviewTitle(item, buildHistoryTitle('splice', taskId || String(nextRound)));
         const state = { previewItem: item };
         renderVideoFromUrl(state, mergedUrl);
         refreshVideoSelectionUi();
