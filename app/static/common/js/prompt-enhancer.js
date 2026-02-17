@@ -23,8 +23,8 @@
         width: 100%;
         display: block;
         box-sizing: border-box;
-        padding-left: 112px;
-        padding-right: 116px;
+        padding-left: 12px;
+        padding-right: 124px;
         min-height: 84px;
       }
       .prompt-enhance-wrap.lightbox-mode {
@@ -37,7 +37,7 @@
       .prompt-enhance-wrap.lightbox-mode > #lightboxEditSend,
       .prompt-enhance-wrap.lightbox-mode > .lightbox-edit-send {
         position: absolute !important;
-        left: 10px !important;
+        right: 10px !important;
         bottom: 10px !important;
         z-index: 4;
         height: 30px !important;
@@ -51,7 +51,7 @@
       .prompt-enhance-wrap.lightbox-mode > .prompt-enhance-btn {
         position: absolute !important;
         right: 10px !important;
-        bottom: 10px !important;
+        bottom: 46px !important;
         z-index: 4;
         height: 30px !important;
         min-width: 104px;
@@ -61,7 +61,7 @@
       }
       @media (max-width: 768px) {
         .prompt-enhance-wrap.lightbox-mode > textarea {
-          padding-left: 104px;
+          padding-left: 12px;
           padding-right: 104px;
           padding-bottom: 50px;
           min-height: 96px;
@@ -69,7 +69,7 @@
         .prompt-enhance-wrap.lightbox-mode > .inline-send-inside,
         .prompt-enhance-wrap.lightbox-mode > #lightboxEditSend,
         .prompt-enhance-wrap.lightbox-mode > .lightbox-edit-send {
-          left: 8px !important;
+          right: 8px !important;
           bottom: 8px !important;
           min-width: 92px;
           height: 28px !important;
@@ -77,7 +77,7 @@
         }
         .prompt-enhance-wrap.lightbox-mode > .prompt-enhance-btn {
           right: 8px !important;
-          bottom: 8px !important;
+          bottom: 42px !important;
           min-width: 92px;
           height: 28px !important;
           padding: 0 10px !important;
