@@ -62,7 +62,7 @@
         user-select: none;
         display: none;
       }
-      .prompt-lang-toggle-btn.is-mobile {
+      .prompt-lang-toggle-btn.is-visible {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -148,11 +148,15 @@
 
   function parseEnhancedPrompt(text) {
     const raw = String(text || '').trim();
+    const headMatch = raw.match(/^([\s\S]*?)\s*最终提示词：/);
     const enMatch = raw.match(/最终提示词：\s*([\s\S]*?)\s*中文参考版：/);
     const zhMatch = raw.match(/中文参考版：\s*([\s\S]*?)\s*可调参数：/);
+    const tailMatch = raw.match(/(可调参数：[\s\S]*)$/);
     return {
+      head: headMatch && headMatch[1] ? String(headMatch[1]).trim() : '',
       en: enMatch && enMatch[1] ? String(enMatch[1]).trim() : '',
       zh: zhMatch && zhMatch[1] ? String(zhMatch[1]).trim() : '',
+      tail: tailMatch && tailMatch[1] ? String(tailMatch[1]).trim() : '',
       raw,
     };
   }
@@ -167,15 +171,34 @@
     toggleBtn.textContent = mode === 'zh' ? '中文' : 'EN';
   }
 
+  function setToggleButtonVisible(toggleBtn, visible) {
+    toggleBtn.classList.toggle('is-visible', Boolean(visible));
+  }
+
+  function buildDesktopText(state, mode) {
+    const middleLabel = mode === 'en' ? '最终提示词：' : '中文参考版：';
+    const middleText = mode === 'en' ? state.en : state.zh;
+    return `${state.head}\n\n${middleLabel}\n${middleText}\n\n${state.tail}`;
+  }
+
   function applyEnhancedByMode(textarea, toggleBtn, mode) {
     const state = enhanceStateMap.get(textarea);
     if (!state) return;
+    const mobile = isMobileViewport();
     if (mode === 'en' && state.en) {
       state.mode = 'en';
-      applyPromptToTextarea(textarea, state.en);
+      if (mobile) {
+        applyPromptToTextarea(textarea, state.en);
+      } else {
+        applyPromptToTextarea(textarea, buildDesktopText(state, 'en'));
+      }
     } else if (mode === 'zh' && state.zh) {
       state.mode = 'zh';
-      applyPromptToTextarea(textarea, state.zh);
+      if (mobile) {
+        applyPromptToTextarea(textarea, state.zh);
+      } else {
+        applyPromptToTextarea(textarea, buildDesktopText(state, 'zh'));
+      }
     } else {
       applyPromptToTextarea(textarea, state.raw);
     }
@@ -196,29 +219,25 @@
     try {
       const enhanced = await callEnhanceApi(raw);
       const parsed = parseEnhancedPrompt(enhanced);
-      const mode = isMobileViewport() ? ((enhanceStateMap.get(textarea) || {}).mode || 'zh') : 'raw';
+      const hasDualLanguage = Boolean(parsed.en && parsed.zh && parsed.head && parsed.tail);
+      const mode = ((enhanceStateMap.get(textarea) || {}).mode || 'zh');
       enhanceStateMap.set(textarea, {
+        head: parsed.head,
         en: parsed.en,
         zh: parsed.zh,
+        tail: parsed.tail,
         raw: parsed.raw,
         mode,
       });
 
-      if (isMobileViewport() && (parsed.en || parsed.zh)) {
-        if (mode === 'en' && parsed.en) {
-          applyPromptToTextarea(textarea, parsed.en);
-        } else if (parsed.zh) {
-          applyPromptToTextarea(textarea, parsed.zh);
-          const state = enhanceStateMap.get(textarea);
-          state.mode = 'zh';
-          enhanceStateMap.set(textarea, state);
-        } else {
-          applyPromptToTextarea(textarea, parsed.raw);
-        }
+      if (hasDualLanguage) {
+        setToggleButtonVisible(toggleBtn, true);
+        const applyMode = mode === 'en' ? 'en' : 'zh';
+        applyEnhancedByMode(textarea, toggleBtn, applyMode);
       } else {
+        setToggleButtonVisible(toggleBtn, false);
         applyPromptToTextarea(textarea, parsed.raw);
       }
-      updateToggleButtonText(toggleBtn, (enhanceStateMap.get(textarea) || {}).mode || 'zh');
       toast('提示词增强完成', 'success');
     } catch (e) {
       const msg = String(e && e.message ? e.message : e);
@@ -248,13 +267,10 @@
     const langBtn = document.createElement('button');
     langBtn.type = 'button';
     langBtn.className = 'geist-button-outline prompt-lang-toggle-btn';
-    if (isMobileViewport()) {
-      langBtn.classList.add('is-mobile');
-    }
     updateToggleButtonText(langBtn, 'zh');
     langBtn.addEventListener('click', () => {
       const state = enhanceStateMap.get(textarea);
-      if (!state || (!state.en && !state.zh)) {
+      if (!state || (!state.en && !state.zh) || !state.head || !state.tail) {
         toast('请先增强提示词', 'warning');
         return;
       }
