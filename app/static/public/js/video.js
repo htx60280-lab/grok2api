@@ -1899,7 +1899,7 @@
         for (const ms of candidates) {
           const seconds = (ms / 1000).toFixed(3);
           try {
-            await ffmpegExec(ff, ['-y', '-ss', seconds, '-i', inputName, '-frames:v', '1', frameName]);
+            await ffmpegExec(ff, ['-y', '-ss', seconds, '-i', inputName, '-frames:v', '1', '-update', '1', frameName]);
             frameBytes = await ffmpegReadFile(ff, frameName);
             lockedTimestampMs = ms;
             break;
@@ -1971,12 +1971,13 @@
               '-i', segASource,
               '-i', segBSource,
               '-filter_complex',
-              `[0:v]trim=end=${trimSeconds},setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0[v];[0:a]atrim=end=${trimSeconds},asetpts=PTS-STARTPTS[a0]`,
+              `[0:v]trim=end=${trimSeconds},setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0[v]`,
               '-map', '[v]',
               '-c:v', 'libx264',
               '-preset', 'ultrafast',
               '-pix_fmt', 'yuv420p',
               '-r', '30',
+              '-an',
               mergedVideoFile
             ]
           );
