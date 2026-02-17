@@ -2060,52 +2060,52 @@
         setPreviewTitle(item, buildHistoryTitle('splice', item.dataset.index || previewCount));
       }
 
-      const waitTasks = taskIds.map((taskId) =>
-        waitEditVideoResult(taskId, rawPublicKey, spliceRun)
-          .then((generatedVideoUrl) => ({ taskId, generatedVideoUrl }))
-      );
-      const waitResults = await Promise.allSettled(waitTasks);
-
       let successCount = 0;
       let lastMergedUrl = '';
-      for (let i = 0; i < waitResults.length; i += 1) {
-        const result = waitResults[i];
-        const taskId = taskIds[i];
-        if (spliceRun.cancelled) break;
-        if (result.status !== 'fulfilled') {
-          const missItem = spliceRun.placeholders.get(taskId) || null;
-          if (missItem) removePreviewItem(missItem);
-          continue;
-        }
-        const generatedVideoUrl = result.value.generatedVideoUrl;
-        if (spliceRun.cancelled) break;
-        const item = spliceRun.placeholders.get(taskId) || null;
-        try {
-          const mergedBlob = await concatVideosLocal(frameInfo.sourceBuffer, generatedVideoUrl);
-          if (spliceRun.cancelled) {
-            throw new Error('edit_cancelled');
-          }
-          const mergedUrl = URL.createObjectURL(mergedBlob);
-          if (item) {
-            selectedVideoItemId = String(item.dataset.index || '');
-            item.dataset.url = mergedUrl;
-            item.dataset.round = String(nextRound);
-            setPreviewTitle(item, buildHistoryTitle('splice', item.dataset.index || previewCount));
-            const state = { previewItem: item };
-            renderVideoFromUrl(state, mergedUrl);
-            refreshVideoSelectionUi();
-          }
-          lastMergedUrl = mergedUrl;
-          successCount += 1;
-        } catch (singleErr) {
-          if (item) {
-            removePreviewItem(item);
-          }
-          if (String(singleErr && singleErr.message || '') === 'edit_cancelled') {
-            break;
-          }
-        }
-      }
+      let processChain = Promise.resolve();
+      const waitTasks = taskIds.map((taskId) =>
+        waitEditVideoResult(taskId, rawPublicKey, spliceRun)
+          .then((generatedVideoUrl) => {
+            processChain = processChain.then(async () => {
+              if (spliceRun.cancelled) return;
+              const item = spliceRun.placeholders.get(taskId) || null;
+              try {
+                const mergedBlob = await concatVideosLocal(frameInfo.sourceBuffer, generatedVideoUrl);
+                if (spliceRun.cancelled) {
+                  throw new Error('edit_cancelled');
+                }
+                const mergedUrl = URL.createObjectURL(mergedBlob);
+                if (item) {
+                  selectedVideoItemId = String(item.dataset.index || '');
+                  item.dataset.url = mergedUrl;
+                  item.dataset.round = String(nextRound);
+                  setPreviewTitle(item, buildHistoryTitle('splice', item.dataset.index || previewCount));
+                  const state = { previewItem: item };
+                  renderVideoFromUrl(state, mergedUrl);
+                  refreshVideoSelectionUi();
+                }
+                lastMergedUrl = mergedUrl;
+                successCount += 1;
+              } catch (singleErr) {
+                if (item) {
+                  removePreviewItem(item);
+                }
+                if (String(singleErr && singleErr.message || '') === 'edit_cancelled') {
+                  return;
+                }
+              }
+            });
+          })
+          .catch((err) => {
+            if (String(err && err.message || '') === 'edit_cancelled') {
+              return;
+            }
+            const missItem = spliceRun.placeholders.get(taskId) || null;
+            if (missItem) removePreviewItem(missItem);
+          })
+      );
+      await Promise.allSettled(waitTasks);
+      await processChain;
 
       if (spliceRun.cancelled) {
         throw new Error('edit_cancelled');
