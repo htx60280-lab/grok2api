@@ -118,7 +118,7 @@ body {
   color: var(--accents-4);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 820px) {
   .video-top-grid {
     grid-template-columns: 1fr;
   }

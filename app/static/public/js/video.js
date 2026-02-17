@@ -1035,6 +1035,11 @@
     bindMergeVideoA(safeUrl);
   }
 
+  function scrollToWorkspaceTop() {
+    if (!editPanel || typeof editPanel.scrollIntoView !== 'function') return;
+    editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function bindMergeVideoA(url) {
     const safeUrl = String(url || '').trim();
     if (!mergeVideoPreviewA) return;
@@ -1772,6 +1777,7 @@
         refreshVideoSelectionUi();
       }
       bindEditVideoSource(mergedUrl);
+      scrollToWorkspaceTop();
       setStatus('connected', '手动拼接完成');
       toast('手动拼接完成', 'success');
     } catch (e) {
@@ -1838,6 +1844,7 @@
         refreshVideoSelectionUi();
       }
       bindEditVideoSource(mergedUrl);
+      scrollToWorkspaceTop();
       editingRound = nextRound;
       setStatus('connected', `拼接完成（第 ${editingRound} 轮）`);
       toast('拼接完成，可继续下一轮编辑', 'success');
