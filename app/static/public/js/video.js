@@ -724,6 +724,24 @@
     throw new Error('ffmpeg_exec_unsupported');
   }
 
+  async function ffmpegDeleteFileSafe(ff, name) {
+    try {
+      if (typeof ff.deleteFile === 'function') {
+        await ff.deleteFile(name);
+        return;
+      }
+      if (ff.FS) {
+        ff.FS('unlink', name);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function ffTaskPrefix(tag) {
+    return `${tag}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   function buildSseUrl(taskId, rawPublicKey) {
     const httpProtocol = window.location.protocol === 'https:' ? 'https' : 'http';
     const base = `${httpProtocol}://${window.location.host}/v1/public/video/sse`;
@@ -1380,11 +1398,14 @@
   async function extractFrameAtCurrentPoint(videoUrl) {
     const ff = await ensureFfmpeg();
     const srcBuffer = await fetchArrayBuffer(videoUrl);
-    await ffmpegWriteFile(ff, 'edit_input.mp4', srcBuffer);
+    const prefix = ffTaskPrefix('edit');
+    const inputName = `${prefix}_input.mp4`;
+    const frameName = `${prefix}_frame.png`;
+    await ffmpegWriteFile(ff, inputName, srcBuffer);
     const seconds = (Math.max(0, lockedTimestampMs) / 1000).toFixed(3);
     // 采用精确 seek：把 -ss 放在输入后，避免 keyframe 近似定位导致错帧。
-    await ffmpegExec(ff, ['-y', '-i', 'edit_input.mp4', '-ss', seconds, '-accurate_seek', '-frames:v', '1', 'edit_frame.png']);
-    const frameBytes = await ffmpegReadFile(ff, 'edit_frame.png');
+    await ffmpegExec(ff, ['-y', '-i', inputName, '-ss', seconds, '-accurate_seek', '-frames:v', '1', frameName]);
+    const frameBytes = await ffmpegReadFile(ff, frameName);
     const frameHash = await sha256Hex(frameBytes);
     const sourceHash = await sha256Hex(srcBuffer);
     let binary = '';
@@ -1395,6 +1416,8 @@
     const dataUrl = `data:image/png;base64,${btoa(binary)}`;
     lastFrameHash = frameHash;
     setEditMeta();
+    await ffmpegDeleteFileSafe(ff, inputName);
+    await ffmpegDeleteFileSafe(ff, frameName);
     return {
       dataUrl,
       frameHash,
@@ -1405,35 +1428,48 @@
 
   async function concatVideosLocal(sourceBuffer, generatedVideoUrl) {
     const ff = await ensureFfmpeg();
+    const prefix = ffTaskPrefix('concat');
+    const segASource = `${prefix}_a_source.mp4`;
+    const segBSource = `${prefix}_b_source.mp4`;
+    const segA = `${prefix}_a.mp4`;
+    const segB = `${prefix}_b.mp4`;
+    const listFile = `${prefix}_list.txt`;
+    const mergedFile = `${prefix}_merged.mp4`;
     const generatedBuffer = await fetchArrayBuffer(generatedVideoUrl);
-    await ffmpegWriteFile(ff, 'seg_a_source.mp4', sourceBuffer);
-    await ffmpegWriteFile(ff, 'seg_b_source.mp4', generatedBuffer);
+    await ffmpegWriteFile(ff, segASource, sourceBuffer);
+    await ffmpegWriteFile(ff, segBSource, generatedBuffer);
     const trimSeconds = (Math.max(0, lockedTimestampMs) / 1000).toFixed(3);
     if (Number(trimSeconds) > 0) {
       await ffmpegExec(
         ff,
-        ['-y', '-i', 'seg_a_source.mp4', '-t', trimSeconds, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', 'seg_a.mp4']
+        ['-y', '-i', segASource, '-t', trimSeconds, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', segA]
       );
       await ffmpegExec(
         ff,
-        ['-y', '-i', 'seg_b_source.mp4', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', 'seg_b.mp4']
+        ['-y', '-i', segBSource, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', segB]
       );
       await ffmpegWriteFile(
         ff,
-        'concat_list.txt',
-        new TextEncoder().encode("file 'seg_a.mp4'\nfile 'seg_b.mp4'\n")
+        listFile,
+        new TextEncoder().encode(`file '${segA}'\nfile '${segB}'\n`)
       );
       await ffmpegExec(
         ff,
-        ['-y', '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', 'merged.mp4']
+        ['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', mergedFile]
       );
     } else {
       await ffmpegExec(
         ff,
-        ['-y', '-i', 'seg_b_source.mp4', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', 'merged.mp4']
+        ['-y', '-i', segBSource, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000', '-ac', '2', mergedFile]
       );
     }
-    const merged = await ffmpegReadFile(ff, 'merged.mp4');
+    const merged = await ffmpegReadFile(ff, mergedFile);
+    await ffmpegDeleteFileSafe(ff, segASource);
+    await ffmpegDeleteFileSafe(ff, segBSource);
+    await ffmpegDeleteFileSafe(ff, segA);
+    await ffmpegDeleteFileSafe(ff, segB);
+    await ffmpegDeleteFileSafe(ff, listFile);
+    await ffmpegDeleteFileSafe(ff, mergedFile);
     return new Blob([merged], { type: 'video/mp4' });
   }
 
