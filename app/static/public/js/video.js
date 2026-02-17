@@ -637,13 +637,13 @@
     try {
       const candidates = {
         coreURL: [
-          '/static/vendor/ffmpeg/ffmpeg-core.js',
+          '/v1/public/video/vendor/ffmpeg-core.js',
         ],
         wasmURL: [
-          '/static/vendor/ffmpeg/ffmpeg-core.wasm',
+          '/v1/public/video/vendor/ffmpeg-core.wasm',
         ],
         workerURL: [
-          '/static/vendor/ffmpeg/ffmpeg-core.worker.js',
+          '/v1/public/video/vendor/ffmpeg-core.worker.js',
         ],
       };
       // 统一转为同源 blob URL，避免跨域 Worker 限制，同时实现多源超时切换。
