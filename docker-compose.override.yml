@@ -1,0 +1,7 @@
+services:
+  grok2api:
+    image: grok2api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: never
