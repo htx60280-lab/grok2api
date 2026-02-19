@@ -499,6 +499,7 @@ class SQLStorage(BaseStorage):
     def __init__(self, url: str):
         try:
             from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from sqlalchemy.pool import NullPool
         except ImportError:
             raise ImportError(
                 "需要安装 sqlalchemy 和 async 驱动: pip install sqlalchemy[asyncio]"
@@ -506,15 +507,83 @@ class SQLStorage(BaseStorage):
 
         self.dialect = url.split(":", 1)[0].split("+", 1)[0].lower()
 
-        # 配置 robust 的连接池
-        self.engine = create_async_engine(
-            url,
-            echo=False,
-            pool_size=20,
-            max_overflow=10,
-            pool_recycle=3600,
-            pool_pre_ping=True,
+        # 统一解析并清理 URL 参数，避免 asyncpg 从 query 中收到字符串类型的数值参数
+        statement_cache_size = None
+        prepared_statement_cache_size = None
+        ssl_mode = None
+        try:
+            from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
+            parts = urlsplit(url)
+            if parts.query:
+                kept = []
+                for key, value in parse_qsl(parts.query, keep_blank_values=True):
+                    k = key.lower()
+                    if k == "statement_cache_size":
+                        try:
+                            statement_cache_size = int(value)
+                        except Exception:
+                            statement_cache_size = 0
+                        continue
+                    if k == "prepared_statement_cache_size":
+                        try:
+                            prepared_statement_cache_size = int(value)
+                        except Exception:
+                            prepared_statement_cache_size = 0
+                        continue
+                    if k in ("sslmode", "ssl"):
+                        ssl_mode = value
+                        continue
+                    kept.append((key, value))
+
+                url = urlunsplit(
+                    (parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment)
+                )
+        except Exception:
+            pass
+
+        # Serverless 环境下禁用长连接池，避免占满数据库连接
+        is_serverless = bool(
+            os.getenv("VERCEL")
+            or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+            or os.getenv("FUNCTIONS_WORKER_RUNTIME")
         )
+
+        engine_kwargs = {
+            "echo": False,
+            "pool_pre_ping": True,
+        }
+
+        if is_serverless:
+            engine_kwargs["poolclass"] = NullPool
+        else:
+            engine_kwargs.update(
+                {
+                    "pool_size": max(1, int(os.getenv("SQL_POOL_SIZE", "20"))),
+                    "max_overflow": max(0, int(os.getenv("SQL_MAX_OVERFLOW", "10"))),
+                    "pool_recycle": max(30, int(os.getenv("SQL_POOL_RECYCLE", "3600"))),
+                }
+            )
+
+        connect_args = {}
+        if self.dialect in ("postgres", "postgresql", "pgsql"):
+            # PgBouncer transaction/statement 模式需要关闭 statement cache
+            connect_args["statement_cache_size"] = (
+                statement_cache_size if statement_cache_size is not None else 0
+            )
+            # 同时关闭 SQLAlchemy asyncpg 方言层的 prepared statement cache
+            connect_args["prepared_statement_cache_size"] = (
+                prepared_statement_cache_size
+                if prepared_statement_cache_size is not None
+                else 0
+            )
+            if ssl_mode:
+                connect_args["ssl"] = ssl_mode
+
+        if connect_args:
+            engine_kwargs["connect_args"] = connect_args
+
+        self.engine = create_async_engine(url, **engine_kwargs)
         self.async_session = async_sessionmaker(self.engine, expire_on_commit=False)
         self._initialized = False
 
