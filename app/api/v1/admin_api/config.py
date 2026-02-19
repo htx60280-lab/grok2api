@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -23,14 +23,20 @@ async def admin_verify():
 @router.get("/config", dependencies=[Depends(verify_app_key)])
 async def get_config():
     """获取当前配置"""
-    # 暴露原始配置字典
-    return config._config
+    try:
+        # 在 serverless 场景下，每次读取前显式回源，避免实例内存态为空。
+        await config.load()
+        return config._config
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/config", dependencies=[Depends(verify_app_key)])
 async def update_config(data: dict):
     """更新配置"""
     try:
+        # 确保基于最新配置合并，避免不同实例间内存态不一致。
+        await config.load()
         await config.update(data)
         return {"status": "success", "message": "配置已更新"}
     except Exception as e:
