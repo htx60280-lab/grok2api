@@ -510,6 +510,7 @@ class SQLStorage(BaseStorage):
         # 统一解析并清理 URL 参数，避免 asyncpg 从 query 中收到字符串类型的数值参数
         statement_cache_size = None
         prepared_statement_cache_size = None
+        command_timeout = None
         ssl_mode = None
         try:
             from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -530,6 +531,12 @@ class SQLStorage(BaseStorage):
                             prepared_statement_cache_size = int(value)
                         except Exception:
                             prepared_statement_cache_size = 0
+                        continue
+                    if k == "command_timeout":
+                        try:
+                            command_timeout = float(value)
+                        except Exception:
+                            command_timeout = 60.0
                         continue
                     if k in ("sslmode", "ssl"):
                         ssl_mode = value
@@ -567,18 +574,26 @@ class SQLStorage(BaseStorage):
 
         connect_args = {}
         if self.dialect in ("postgres", "postgresql", "pgsql"):
-            # PgBouncer transaction/statement 模式需要关闭 statement cache
+            # Disable statement cache for PgBouncer transaction/statement mode
             connect_args["statement_cache_size"] = (
                 statement_cache_size if statement_cache_size is not None else 0
             )
-            # 同时关闭 SQLAlchemy asyncpg 方言层的 prepared statement cache
+            # Disable SQLAlchemy asyncpg prepared statement cache as well
             connect_args["prepared_statement_cache_size"] = (
                 prepared_statement_cache_size
                 if prepared_statement_cache_size is not None
                 else 0
             )
+            # Avoid prepared statement name collisions under PgBouncer
+            connect_args["prepared_statement_name_func"] = lambda: ""
+            if command_timeout is not None:
+                connect_args["command_timeout"] = max(1.0, float(command_timeout))
             if ssl_mode:
-                connect_args["ssl"] = ssl_mode
+                mode = str(ssl_mode).strip().lower()
+                if mode in ("disable", "false", "off", "0"):
+                    connect_args["ssl"] = False
+                else:
+                    connect_args["ssl"] = mode
 
         if connect_args:
             engine_kwargs["connect_args"] = connect_args
@@ -728,8 +743,10 @@ class SQLStorage(BaseStorage):
                     config[section][key] = val
                 return config
         except Exception as e:
-            logger.error(f"SQLStorage: 加载配置失败: {e}")
-            return None
+            logger.error(f"SQLStorage: load config failed: {e}")
+            # Return empty dict to avoid bootstrap overwrite on transient DB errors.
+            return {}
+
 
     async def save_config(self, data: Dict[str, Any]):
         await self._ensure_schema()

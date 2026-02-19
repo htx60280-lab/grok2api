@@ -13,6 +13,23 @@ DEFAULT_APP_KEY = "grok2api"
 DEFAULT_PUBLIC_KEY = ""
 DEFAULT_PUBLIC_ENABLED = False
 
+
+def _to_bool(value, default=False) -> bool:
+    """Convert config value to bool safely."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "", "none", "null"}:
+            return False
+    return bool(value)
+
 # 定义 Bearer Scheme
 security = HTTPBearer(
     auto_error=False,
@@ -50,7 +67,7 @@ def is_public_enabled() -> bool:
     """
     是否开启 public 功能入口。
     """
-    return bool(get_config("app.public_enabled", DEFAULT_PUBLIC_ENABLED))
+    return _to_bool(get_config("app.public_enabled", DEFAULT_PUBLIC_ENABLED), False)
 
 
 async def verify_api_key(

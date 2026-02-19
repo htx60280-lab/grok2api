@@ -266,7 +266,12 @@ class Config:
             self._config = merged
         except Exception as e:
             logger.error(f"Error loading config: {e}")
-            self._config = {}
+            # Keep in-memory config on transient load failure to avoid false reset.
+            if self._config:
+                logger.warning("Use cached in-memory config due to load failure")
+                return
+            self._ensure_defaults()
+            self._config = deepcopy(self._defaults)
 
     def get(self, key: str, default: Any = None) -> Any:
         """

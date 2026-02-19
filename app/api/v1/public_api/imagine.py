@@ -216,6 +216,38 @@ def _normalize_imagine_ratio(value: Optional[str]) -> str:
     return mapped if mapped in _RATIO_ALLOWED else "2:3"
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        text = str(value).strip()
+        if not text:
+            return default
+        return int(float(text))
+    except Exception:
+        return default
+
+
+def _safe_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "", "none", "null"}:
+            return False
+    return bool(value)
+
+
 def _parse_sse_chunk(chunk: str) -> Optional[Dict[str, Any]]:
     if not chunk:
         return None
@@ -667,9 +699,9 @@ async def public_imagine_sse(
 @router.get("/imagine/config")
 async def public_imagine_config():
     return {
-        "final_min_bytes": int(get_config("image.final_min_bytes") or 0),
-        "medium_min_bytes": int(get_config("image.medium_min_bytes") or 0),
-        "nsfw": bool(get_config("image.nsfw")),
+        "final_min_bytes": max(0, _safe_int(get_config("image.final_min_bytes"), 0)),
+        "medium_min_bytes": max(0, _safe_int(get_config("image.medium_min_bytes"), 0)),
+        "nsfw": _safe_bool(get_config("image.nsfw"), False),
     }
 
 

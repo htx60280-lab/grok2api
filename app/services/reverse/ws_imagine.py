@@ -19,6 +19,38 @@ from app.services.reverse.utils.websocket import WebSocketClient
 WS_IMAGINE_URL = "wss://grok.com/ws/imagine/listen"
 
 
+def _safe_float(value, default: float) -> float:
+    try:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return float(int(value))
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
+        if not text:
+            return default
+        return float(text)
+    except Exception:
+        return default
+
+
+def _safe_int(value, default: int) -> int:
+    try:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        text = str(value).strip()
+        if not text:
+            return default
+        return int(float(text))
+    except Exception:
+        return default
+
+
 class _BlockedError(Exception):
     pass
 
@@ -145,12 +177,12 @@ class ImagineWebSocketReverse:
     ) -> AsyncGenerator[Dict[str, object], None]:
         request_id = str(uuid.uuid4())
         headers = build_ws_headers(token=token)
-        timeout = float(get_config("image.timeout"))
-        stream_timeout = float(get_config("image.stream_timeout"))
-        final_timeout = float(get_config("image.final_timeout"))
+        timeout = max(1.0, _safe_float(get_config("image.timeout"), 60.0))
+        stream_timeout = max(1.0, _safe_float(get_config("image.stream_timeout"), 60.0))
+        final_timeout = max(1.0, _safe_float(get_config("image.final_timeout"), 15.0))
         blocked_grace = min(10.0, final_timeout)
-        final_min_bytes = int(get_config("image.final_min_bytes"))
-        medium_min_bytes = int(get_config("image.medium_min_bytes"))
+        final_min_bytes = max(0, _safe_int(get_config("image.final_min_bytes"), 100000))
+        medium_min_bytes = max(0, _safe_int(get_config("image.medium_min_bytes"), 30000))
 
         try:
             conn = await self._client.connect(
